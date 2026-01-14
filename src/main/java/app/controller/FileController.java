@@ -40,7 +40,6 @@ public class FileController {
                                 "Файл: " + file.getName() + "\n" +
                                 "Вершин: " + model.getVertexCount() + "\n" +
                                 "Полигонов: " + model.getFaceCount());
-                model.setFilePath(file.getAbsolutePath());
                 return model;
             } catch (IOException e) {
                 showErrorDialog("Ошибка загрузки",
