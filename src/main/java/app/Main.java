@@ -4,7 +4,7 @@ import javax.swing.*;
 
 public class Main {
     public static void main(String[] args) {
-        // Устанавливаем более красивый стиль (если доступен)
+        // Устанавливаем красивый стиль
         try {
             for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
                 if ("Nimbus".equals(info.getName())) {
@@ -13,7 +13,12 @@ public class Main {
                 }
             }
         } catch (Exception e) {
-            // Используем стандартный стиль
+            // Используем системный стиль
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
         }
 
         SwingUtilities.invokeLater(() -> {

@@ -1,22 +1,31 @@
 package main.java.app;
 
+import main.java.app.controller.FileController;
+import main.java.app.model.Model3D;
+import main.java.app.model.SceneModel;
 import main.java.app.view.MainPanel;
-import app.view.ControlPanel;
+import main.java.app.view.ControlPanel;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.io.File;
 
 public class MainWindow extends JFrame {
     private MainPanel mainPanel;
     private ControlPanel controlPanel;
     private JMenuBar menuBar;
+    private FileController fileController;
+    private SceneModel sceneModel;
+    private File currentModelFile;
+    private JLabel statusLabel;
 
     public MainWindow() {
         initWindow();
+        initControllers();
         initMenuBar();
         initComponents();
         layoutComponents();
+        updateUIState();
     }
 
     private void initWindow() {
@@ -24,12 +33,11 @@ public class MainWindow extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setPreferredSize(new Dimension(1200, 800));
         setMinimumSize(new Dimension(800, 600));
+    }
 
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    private void initControllers() {
+        fileController = new FileController(this);
+        sceneModel = new SceneModel();
     }
 
     private void initMenuBar() {
@@ -44,22 +52,20 @@ public class MainWindow extends JFrame {
         openItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, KeyEvent.CTRL_DOWN_MASK));
         openItem.addActionListener(e -> onOpenModel());
 
-        JMenuItem saveItem = new JMenuItem("Сохранить модель...");
+        JMenuItem saveItem = new JMenuItem("Сохранить модель");
         saveItem.setMnemonic(KeyEvent.VK_S);
         saveItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_DOWN_MASK));
-        saveItem.setEnabled(false);
         saveItem.addActionListener(e -> onSaveModel());
 
         JMenuItem saveAsItem = new JMenuItem("Сохранить как...");
         saveAsItem.setMnemonic(KeyEvent.VK_A);
-        saveAsItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK));
-        saveAsItem.setEnabled(false);
+        saveAsItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S,
+                KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK));
         saveAsItem.addActionListener(e -> onSaveAsModel());
 
         JMenuItem exitItem = new JMenuItem("Выход");
         exitItem.setMnemonic(KeyEvent.VK_X);
-        exitItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, KeyEvent.ALT_DOWN_MASK));
-        exitItem.addActionListener(e -> System.exit(0));
+        exitItem.addActionListener(e -> onExit());
 
         fileMenu.add(openItem);
         fileMenu.add(saveItem);
@@ -131,7 +137,7 @@ public class MainWindow extends JFrame {
 
         helpMenu.add(aboutItem);
 
-        // Добавляем все меню в меню бар
+        // Добавляем меню
         menuBar.add(fileMenu);
         menuBar.add(editMenu);
         menuBar.add(viewMenu);
@@ -144,6 +150,13 @@ public class MainWindow extends JFrame {
     private void initComponents() {
         mainPanel = new MainPanel();
         controlPanel = new ControlPanel();
+
+        // Привязываем кнопки из controlPanel
+        controlPanel.getLoadModelButton().addActionListener(e -> onOpenModel());
+        controlPanel.getSaveModelButton().addActionListener(e -> onSaveModel());
+
+        // Привязываем выбор модели в комбобоксе
+        controlPanel.getModelSelector().addActionListener(e -> onModelSelected());
     }
 
     private void layoutComponents() {
@@ -157,52 +170,201 @@ public class MainWindow extends JFrame {
         container.add(mainPanel, BorderLayout.CENTER);
 
         // Статус бар внизу
-        JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        statusPanel.add(new JLabel("Статус: Готово"));
+        JPanel statusPanel = new JPanel(new BorderLayout());
+        statusPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+
+        statusLabel = new JLabel("Готов к работе. Нажмите Ctrl+O для загрузки модели.");
+        statusPanel.add(statusLabel, BorderLayout.WEST);
+
+        // Добавляем информацию о версии справа
+        JLabel versionLabel = new JLabel("3D Viewer v1.0");
+        versionLabel.setForeground(Color.GRAY);
+        statusPanel.add(versionLabel, BorderLayout.EAST);
+
         container.add(statusPanel, BorderLayout.SOUTH);
 
         pack();
         setLocationRelativeTo(null);
     }
 
-    // Обработчики действий (заглушки - будут реализованы в следующих коммитах)
+    // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
+
     private void onOpenModel() {
-        System.out.println("Меню: Открыть модель");
-        // TODO: Реализовать в коммите 3
+        Model3D model = fileController.openModel();
+        if (model != null) {
+            sceneModel.addModel(model);
+            currentModelFile = new File(model.getName() + ".obj");
+
+            // Обновляем интерфейс
+            updateModelSelector();
+            controlPanel.getModelSelector().setSelectedItem(model.getName());
+            sceneModel.setActiveModel(model);
+            updateUIState();
+
+            // Обновляем статус
+            updateStatus("Загружена модель: " + model.getName() +
+                    " (" + model.getVertexCount() + " вершин, " +
+                    model.getFaceCount() + " полигонов)");
+
+            // Перерисовываем
+            mainPanel.repaint();
+        }
     }
 
     private void onSaveModel() {
-        System.out.println("Меню: Сохранить модель");
-        // TODO: Реализовать в коммите 3
+        Model3D activeModel = sceneModel.getActiveModel();
+        if (activeModel == null) {
+            fileController.showErrorDialog("Ошибка", "Нет активной модели для сохранения");
+            return;
+        }
+
+        if (currentModelFile == null) {
+            onSaveAsModel();
+        } else {
+            boolean success = fileController.saveModel(activeModel, currentModelFile);
+            if (success) {
+                updateStatus("Модель сохранена: " + currentModelFile.getName());
+                activeModel.setModified(false);
+            }
+        }
     }
 
     private void onSaveAsModel() {
-        System.out.println("Меню: Сохранить как");
-        // TODO: Реализовать в коммите 3
+        Model3D activeModel = sceneModel.getActiveModel();
+        if (activeModel == null) {
+            fileController.showErrorDialog("Ошибка", "Нет активной модели для сохранения");
+            return;
+        }
+
+        boolean success = fileController.saveModelAs(activeModel);
+        if (success) {
+            updateStatus("Модель сохранена как...");
+            activeModel.setModified(false);
+        }
+    }
+
+    private void onExit() {
+        // Проверяем несохраненные изменения
+        boolean hasUnsaved = false;
+        for (Model3D model : sceneModel.getModels()) {
+            if (model.isModified()) {
+                hasUnsaved = true;
+                break;
+            }
+        }
+
+        if (hasUnsaved) {
+            boolean confirm = fileController.showConfirmDialog("Подтверждение выхода",
+                    "Есть несохраненные изменения. Выйти без сохранения?");
+            if (!confirm) {
+                return;
+            }
+        }
+        System.exit(0);
+    }
+
+    private void onModelSelected() {
+        String selectedName = (String) controlPanel.getModelSelector().getSelectedItem();
+        if (selectedName != null && !selectedName.equals("Нет моделей")) {
+            for (Model3D model : sceneModel.getModels()) {
+                if (model.getName().equals(selectedName)) {
+                    sceneModel.setActiveModel(model);
+                    updateStatus("Активная модель: " + model.getName());
+                    break;
+                }
+            }
+        }
     }
 
     private void onDeleteVertex() {
-        System.out.println("Меню: Удалить вершину");
         // TODO: Реализовать в коммите 6
+        System.out.println("Удалить вершину");
     }
 
     private void onDeletePolygon() {
-        System.out.println("Меню: Удалить полигон");
         // TODO: Реализовать в коммите 6
+        System.out.println("Удалить полигон");
     }
 
     private void onThemeChanged(String theme) {
-        System.out.println("Тема изменена на: " + theme);
         // TODO: Реализовать в коммите 5
+        System.out.println("Тема изменена на: " + theme);
     }
 
     private void showAboutDialog() {
-        JOptionPane.showMessageDialog(this,
+        fileController.showInfoDialog("О программе",
                 "3D Viewer v1.0\n" +
-                        "Разработчик: [Ваша фамилия]\n" +
+                        "Разработчик: Иванов Александр\n" +
                         "Курс: Компьютерная графика\n" +
-                        "Группа: [Ваша группа]",
-                "О программе",
-                JOptionPane.INFORMATION_MESSAGE);
+                        "Группа: 6\n\n" +
+                        "Функции:\n" +
+                        "• Загрузка/сохранение OBJ моделей\n" +
+                        "• Управление несколькими моделями\n" +
+                        "• Режимы отрисовки\n" +
+                        "• Обработка ошибок\n");
+    }
+
+    // ========== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ==========
+
+    private void updateModelSelector() {
+        JComboBox<String> selector = controlPanel.getModelSelector();
+        selector.removeAllItems();
+
+        if (sceneModel.getModels().isEmpty()) {
+            selector.addItem("Нет моделей");
+            selector.setEnabled(false);
+        } else {
+            for (Model3D model : sceneModel.getModels()) {
+                String name = model.getName();
+                if (model.isModified()) {
+                    name += " *";
+                }
+                selector.addItem(name);
+            }
+            selector.setEnabled(true);
+        }
+    }
+
+    private void updateUIState() {
+        boolean hasModels = !sceneModel.getModels().isEmpty();
+
+        // Обновляем меню
+        for (int i = 0; i < menuBar.getMenuCount(); i++) {
+            JMenu menu = menuBar.getMenu(i);
+            if (menu.getText().equals("Файл")) {
+                for (int j = 0; j < menu.getItemCount(); j++) {
+                    JMenuItem item = menu.getItem(j);
+                    if (item != null && item.getText().contains("Сохранить")) {
+                        item.setEnabled(hasModels);
+                    }
+                }
+            } else if (menu.getText().equals("Редактирование")) {
+                for (int j = 0; j < menu.getItemCount(); j++) {
+                    JMenuItem item = menu.getItem(j);
+                    if (item != null) {
+                        item.setEnabled(hasModels);
+                    }
+                }
+            }
+        }
+
+        // Обновляем кнопки в controlPanel
+        controlPanel.getSaveModelButton().setEnabled(hasModels);
+    }
+
+    private void updateStatus(String message) {
+        statusLabel.setText(message);
+    }
+
+    public FileController getFileController() {
+        return fileController;
+    }
+
+    public SceneModel getSceneModel() {
+        return sceneModel;
+    }
+
+    public MainPanel getMainPanel() {
+        return mainPanel;
     }
 }
