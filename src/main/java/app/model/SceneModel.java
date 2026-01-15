@@ -12,6 +12,7 @@ public class SceneModel {
     }
 
     public void addModel(Model3D model) {
+        if (model == null) return;
         models.add(model);
         if (activeModel == null) {
             activeModel = model;
@@ -19,13 +20,45 @@ public class SceneModel {
     }
 
     public void removeModel(Model3D model) {
+        if (model == null) return;
         models.remove(model);
         if (activeModel == model) {
             activeModel = models.isEmpty() ? null : models.get(0);
         }
     }
 
-    public List<Model3D> getModels() { return models; }
-    public Model3D getActiveModel() { return activeModel; }
-    public void setActiveModel(Model3D model) { this.activeModel = model; }
+    public void removeModel(int index) {
+        if (index >= 0 && index < models.size()) {
+            Model3D model = models.get(index);
+            removeModel(model);
+        }
+    }
+
+    public List<Model3D> getModels() {
+        return new ArrayList<>(models);
+    }
+
+    public Model3D getActiveModel() {
+        return activeModel;
+    }
+
+    public void setActiveModel(Model3D model) {
+        if (models.contains(model)) {
+            this.activeModel = model;
+        }
+    }
+
+    public void setActiveModel(int index) {
+        if (index >= 0 && index < models.size()) {
+            this.activeModel = models.get(index);
+        }
+    }
+
+    public boolean hasModels() {
+        return !models.isEmpty();
+    }
+
+    public int getModelCount() {
+        return models.size();
+    }
 }

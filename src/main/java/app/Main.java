@@ -13,7 +13,6 @@ public class Main {
                 }
             }
         } catch (Exception e) {
-            // Используем системный стиль
             try {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
             } catch (Exception ex) {

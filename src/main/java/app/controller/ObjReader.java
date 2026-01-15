@@ -50,27 +50,66 @@ public class ObjReader {
                                 float x = Float.parseFloat(parts[1]);
                                 float y = Float.parseFloat(parts[2]);
                                 float z = Float.parseFloat(parts[3]);
+
+                                // Проверка на корректность координат
+                                if (Float.isNaN(x) || Float.isNaN(y) || Float.isNaN(z)) {
+                                    throw new IOException("Ошибка в строке " + lineNumber +
+                                            ": координаты содержат NaN");
+                                }
+                                if (Float.isInfinite(x) || Float.isInfinite(y) || Float.isInfinite(z)) {
+                                    throw new IOException("Ошибка в строке " + lineNumber +
+                                            ": координаты содержат бесконечность");
+                                }
+
                                 vertices.add(new float[]{x, y, z});
                             } catch (NumberFormatException e) {
                                 throw new IOException("Ошибка в строке " + lineNumber +
                                         ": неверный формат вершины: " + line);
                             }
+                        } else {
+                            throw new IOException("Ошибка в строке " + lineNumber +
+                                    ": вершина должна содержать 3 координаты");
                         }
                         break;
 
                     case "f": // face
                         try {
+                            if (parts.length < 4) {
+                                throw new IOException("Полигон должен содержать хотя бы 3 вершины");
+                            }
+
                             int[] face = new int[parts.length - 1];
                             for (int i = 1; i < parts.length; i++) {
                                 // Берем только номер вершины (игнорируем текстурные координаты и нормали)
                                 String vertexPart = parts[i].split("/")[0];
-                                face[i-1] = Integer.parseInt(vertexPart) - 1; // OBJ индексы с 1
+                                int vertexIndex = Integer.parseInt(vertexPart);
+
+                                // Проверка индекса вершины
+                                if (vertexIndex == 0) {
+                                    throw new IOException("Ошибка в строке " + lineNumber +
+                                            ": индекс вершины не может быть 0");
+                                }
+
+                                // OBJ индексы с 1, а у нас с 0
+                                int correctedIndex = vertexIndex > 0 ? vertexIndex - 1 : vertices.size() + vertexIndex;
+
+                                if (correctedIndex < 0 || correctedIndex >= vertices.size()) {
+                                    throw new IOException("Ошибка в строке " + lineNumber +
+                                            ": индекс вершины " + vertexIndex + " выходит за пределы");
+                                }
+
+                                face[i-1] = correctedIndex;
                             }
                             faces.add(face);
                         } catch (NumberFormatException e) {
                             throw new IOException("Ошибка в строке " + lineNumber +
                                     ": неверный формат полигона: " + line);
                         }
+                        break;
+
+                    case "vn": // нормали
+                    case "vt": // текстурные координаты
+                        // Игнорируем, но пропускаем корректно
                         break;
                 }
             }

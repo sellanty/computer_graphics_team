@@ -1,6 +1,7 @@
 package main.java.app.controller;
 
 import main.java.app.model.Model3D;
+import main.java.app.view.ErrorDialog;
 import javax.swing.*;
 import java.io.File;
 import java.io.IOException;
@@ -9,6 +10,7 @@ public class FileController {
     private JFrame parentFrame;
     private ObjReader objReader;
     private ObjWriter objWriter;
+    private File currentFile;
 
     public FileController(JFrame parentFrame) {
         this.parentFrame = parentFrame;
@@ -33,42 +35,58 @@ public class FileController {
         int result = fileChooser.showOpenDialog(parentFrame);
         if (result == JFileChooser.APPROVE_OPTION) {
             File file = fileChooser.getSelectedFile();
+            currentFile = file;
+
             try {
+                // Валидация файла
+                if (!objReader.validateObjFile(file)) {
+                    ErrorDialog.showErrorDialog(parentFrame, "Ошибка",
+                            "Файл не является корректным OBJ файлом или не содержит вершин.");
+                    return null;
+                }
+
                 Model3D model = objReader.read(file);
+
                 showInfoDialog("Успех",
                         "Модель успешно загружена!\n" +
                                 "Файл: " + file.getName() + "\n" +
                                 "Вершин: " + model.getVertexCount() + "\n" +
-                                "Полигонов: " + model.getFaceCount());
+                                "Полигонов: " + model.getFaceCount() + "\n" +
+                                "Размер: " + formatFileSize(file.length()));
                 return model;
+
             } catch (IOException e) {
-                showErrorDialog("Ошибка загрузки",
-                        "Не удалось загрузить файл: " + file.getName() + "\n" +
-                                "Причина: " + e.getMessage());
+                ErrorDialog.showDetailedErrorDialog(parentFrame, "Ошибка загрузки",
+                        "Не удалось загрузить файл: " + file.getName(),
+                        e.getMessage());
             } catch (Exception e) {
-                showErrorDialog("Ошибка формата",
-                        "Файл имеет неверный формат или поврежден: " + file.getName() + "\n" +
-                                "Детали: " + e.getMessage());
+                ErrorDialog.showDetailedErrorDialog(parentFrame, "Ошибка формата",
+                        "Файл имеет неверный формат или поврежден: " + file.getName(),
+                        e.getMessage());
             }
         }
         return null;
     }
 
-    public boolean saveModel(Model3D model, File currentFile) {
-        if (currentFile == null) {
+    public boolean saveModel(Model3D model, File file) {
+        if (file == null) {
             return saveModelAs(model);
         }
 
         try {
-            objWriter.write(model, currentFile);
+            objWriter.write(model, file);
+            currentFile = file;
+            model.setModified(false);
+
             showInfoDialog("Успех",
                     "Модель успешно сохранена!\n" +
-                            "Файл: " + currentFile.getName());
+                            "Файл: " + file.getName() + "\n" +
+                            "Размер: " + formatFileSize(file.length()));
             return true;
         } catch (IOException e) {
-            showErrorDialog("Ошибка сохранения",
-                    "Не удалось сохранить файл: " + currentFile.getName() + "\n" +
-                            "Причина: " + e.getMessage());
+            ErrorDialog.showDetailedErrorDialog(parentFrame, "Ошибка сохранения",
+                    "Не удалось сохранить файл: " + file.getName(),
+                    e.getMessage());
             return false;
         }
     }
@@ -87,6 +105,13 @@ public class FileController {
             }
         });
 
+        // Предлагаем сохранить с текущим именем модели
+        if (currentFile != null) {
+            fileChooser.setSelectedFile(new File(currentFile.getParentFile(), model.getName() + ".obj"));
+        } else {
+            fileChooser.setSelectedFile(new File(model.getName() + ".obj"));
+        }
+
         int result = fileChooser.showSaveDialog(parentFrame);
         if (result == JFileChooser.APPROVE_OPTION) {
             File file = fileChooser.getSelectedFile();
@@ -95,24 +120,31 @@ public class FileController {
             }
 
             if (file.exists()) {
-                boolean overwrite = showConfirmDialog("Подтверждение",
-                        "Файл " + file.getName() + " уже существует.\n" +
-                                "Перезаписать?");
-                if (!overwrite) {
+                int response = JOptionPane.showConfirmDialog(parentFrame,
+                        "Файл " + file.getName() + " уже существует.\nПерезаписать?",
+                        "Подтверждение",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE);
+
+                if (response != JOptionPane.YES_OPTION) {
                     return false;
                 }
             }
 
             try {
                 objWriter.write(model, file);
+                currentFile = file;
+                model.setModified(false);
+
                 showInfoDialog("Успех",
                         "Модель успешно сохранена!\n" +
-                                "Файл: " + file.getName());
+                                "Файл: " + file.getName() + "\n" +
+                                "Размер: " + formatFileSize(file.length()));
                 return true;
             } catch (IOException e) {
-                showErrorDialog("Ошибка сохранения",
-                        "Не удалось сохранить файл: " + file.getName() + "\n" +
-                                "Причина: " + e.getMessage());
+                ErrorDialog.showDetailedErrorDialog(parentFrame, "Ошибка сохранения",
+                        "Не удалось сохранить файл: " + file.getName(),
+                        e.getMessage());
                 return false;
             }
         }
@@ -120,32 +152,21 @@ public class FileController {
     }
 
     public void showErrorDialog(String title, String message) {
-        JOptionPane.showMessageDialog(parentFrame,
-                wrapMessage(message),
-                title,
-                JOptionPane.ERROR_MESSAGE);
+        ErrorDialog.showErrorDialog(parentFrame, title, message);
     }
 
     public void showInfoDialog(String title, String message) {
-        JOptionPane.showMessageDialog(parentFrame,
-                wrapMessage(message),
-                title,
-                JOptionPane.INFORMATION_MESSAGE);
+        ErrorDialog.showSuccessDialog(parentFrame, title, message);
     }
 
-    public boolean showConfirmDialog(String title, String message) {
-        int result = JOptionPane.showConfirmDialog(parentFrame,
-                wrapMessage(message),
-                title,
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE);
-        return result == JOptionPane.YES_OPTION;
-    }
-
-    private String wrapMessage(String message) {
-        return "<html><body style='width: 300px'>" +
-                message.replace("\n", "<br>") +
-                "</body></html>";
+    private String formatFileSize(long size) {
+        if (size < 1024) {
+            return size + " B";
+        } else if (size < 1024 * 1024) {
+            return String.format("%.1f KB", size / 1024.0);
+        } else {
+            return String.format("%.1f MB", size / (1024.0 * 1024.0));
+        }
     }
 
     private JFileChooser createFileChooser(String title) {
@@ -164,11 +185,7 @@ public class FileController {
         return fileChooser;
     }
 
-    public String getModelInfo(Model3D model) {
-        if (model == null) {
-            return "Нет загруженной модели";
-        }
-        return String.format("Модель: %s | Вершин: %d | Полигонов: %d",
-                model.getName(), model.getVertexCount(), model.getFaceCount());
+    public File getCurrentFile() {
+        return currentFile;
     }
 }

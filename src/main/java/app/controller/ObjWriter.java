@@ -34,10 +34,12 @@ public class ObjWriter {
 
         PrintWriter writer = null;
         try {
-            writer = new PrintWriter(file);
+            writer = new PrintWriter(file, "UTF-8");
 
             // Заголовок
             writer.println("# 3D Model exported from 3D Viewer");
+            writer.println("# Created: " + new java.util.Date());
+            writer.println("# Model: " + model.getName());
             writer.println("# Vertices: " + vertices.size());
             writer.println("# Faces: " + (faces != null ? faces.size() : 0));
             writer.println();
@@ -50,10 +52,17 @@ public class ObjWriter {
             writer.println();
 
             // Полигоны
-            if (faces != null) {
+            if (faces != null && !faces.isEmpty()) {
                 for (int[] face : faces) {
+                    if (face.length < 3) {
+                        continue; // Пропускаем некорректные полигоны
+                    }
+
                     writer.print("f");
                     for (int vertexIndex : face) {
+                        if (vertexIndex < 0 || vertexIndex >= vertices.size()) {
+                            throw new IOException("Неверный индекс вершины в полигоне: " + vertexIndex);
+                        }
                         // OBJ индексы начинаются с 1
                         writer.print(" " + (vertexIndex + 1));
                     }
@@ -70,11 +79,5 @@ public class ObjWriter {
                 writer.close();
             }
         }
-    }
-
-    public void write(Model3D model, File file, boolean applyTransformations) throws IOException {
-        // В этой версии всегда сохраняем исходные координаты
-        // В будущем можно добавить преобразование координат
-        write(model, file);
     }
 }
