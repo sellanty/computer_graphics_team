@@ -13,9 +13,11 @@ public class ControlPanel extends JPanel {
     private JLabel modelInfoLabel;
     private JSpinner vertexSpinner;
     private JSpinner polygonSpinner;
-    private JCheckBox gridCheckbox;
-    private JCheckBox infoCheckbox;
     private JButton themeToggleBtn;
+
+    // Базовые чекбоксы (убрали infoCheckbox)
+    private JCheckBox gridCheckbox;
+    private JCheckBox axesCheckbox;
 
     public ControlPanel(MainWindow mainWindow) {
         this.mainWindow = mainWindow;
@@ -65,14 +67,9 @@ public class ControlPanel extends JPanel {
             if (index >= 0) mainWindow.selectModel(index);
         });
 
-        JPanel buttonPanel = new JPanel(new GridLayout(2, 1, 5, 5));
-        JButton duplicateBtn = createStyledButton("Дублировать");
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 1, 5, 5));
         JButton renameBtn = createStyledButton("Переименовать");
-
-        duplicateBtn.addActionListener(e -> mainWindow.duplicateModel());
         renameBtn.addActionListener(e -> renameModel());
-
-        buttonPanel.add(duplicateBtn);
         buttonPanel.add(renameBtn);
 
         panel.add(new JLabel("Модель:"), BorderLayout.NORTH);
@@ -97,30 +94,61 @@ public class ControlPanel extends JPanel {
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 
         // Удаление вершины
-        JPanel vertexPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel vertexPanel = new JPanel(new BorderLayout(5, 0));
         vertexPanel.setOpaque(false);
-        vertexPanel.add(new JLabel("Вершина:"));
+
+        JLabel vertexLabel = new JLabel("Вершина:");
+        vertexPanel.add(vertexLabel, BorderLayout.WEST);
+
+        JPanel vertexControlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        vertexControlPanel.setOpaque(false);
 
         vertexSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 1000, 1));
-        vertexPanel.add(vertexSpinner);
+        vertexSpinner.setPreferredSize(new Dimension(60, 25));
+        vertexControlPanel.add(vertexSpinner);
 
-        JButton deleteVertexBtn = createStyledButton("Удалить");
+        JButton deleteVertexBtn = new JButton("Удалить");
+        deleteVertexBtn.setBackground(ThemeManager.getPanelColor());
+        deleteVertexBtn.setForeground(ThemeManager.getTextColor());
+        deleteVertexBtn.setFocusPainted(false);
+        deleteVertexBtn.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.getBorderColor(), 1),
+                BorderFactory.createEmptyBorder(3, 8, 3, 8)
+        ));
         deleteVertexBtn.addActionListener(e -> deleteVertex());
-        vertexPanel.add(deleteVertexBtn);
+        vertexControlPanel.add(deleteVertexBtn);
+
+        vertexPanel.add(vertexControlPanel, BorderLayout.CENTER);
 
         panel.add(vertexPanel);
+        panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
         // Удаление полигона
-        JPanel polygonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel polygonPanel = new JPanel(new BorderLayout(5, 0));
         polygonPanel.setOpaque(false);
-        polygonPanel.add(new JLabel("Полигон:"));
+
+        JLabel polygonLabel = new JLabel("Полигон:");
+        polygonPanel.add(polygonLabel, BorderLayout.WEST);
+
+        JPanel polygonControlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        polygonControlPanel.setOpaque(false);
 
         polygonSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 1000, 1));
-        polygonPanel.add(polygonSpinner);
+        polygonSpinner.setPreferredSize(new Dimension(60, 25));
+        polygonControlPanel.add(polygonSpinner);
 
-        JButton deletePolygonBtn = createStyledButton("Удалить");
+        JButton deletePolygonBtn = new JButton("Удалить");
+        deletePolygonBtn.setBackground(ThemeManager.getPanelColor());
+        deletePolygonBtn.setForeground(ThemeManager.getTextColor());
+        deletePolygonBtn.setFocusPainted(false);
+        deletePolygonBtn.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.getBorderColor(), 1),
+                BorderFactory.createEmptyBorder(3, 8, 3, 8)
+        ));
         deletePolygonBtn.addActionListener(e -> deletePolygon());
-        polygonPanel.add(deletePolygonBtn);
+        polygonControlPanel.add(deletePolygonBtn);
+
+        polygonPanel.add(polygonControlPanel, BorderLayout.CENTER);
 
         panel.add(polygonPanel);
 
@@ -128,41 +156,79 @@ public class ControlPanel extends JPanel {
         add(Box.createRigidArea(new Dimension(0, 10)));
     }
 
+    private void deleteVertex() {
+        Model3D model = mainWindow.getSceneModel().getActiveModel();
+        if (model == null) {
+            showErrorDialog("Нет активной модели");
+            return;
+        }
+
+        int index = (int) vertexSpinner.getValue();
+        if (!ModelEditor.isValidVertexIndex(model, index)) {
+            showErrorDialog("Неверный индекс вершины");
+            return;
+        }
+
+        if (ModelEditor.deleteVertex(model, index)) {
+            showSuccessDialog("Вершина удалена");
+            updateModelInfo();
+            mainWindow.getMainPanel().repaint();
+            mainWindow.updateStatus("Вершина " + index + " удалена");
+        } else {
+            showErrorDialog("Ошибка удаления вершины");
+        }
+    }
+
+    private void deletePolygon() {
+        Model3D model = mainWindow.getSceneModel().getActiveModel();
+        if (model == null) {
+            showErrorDialog("Нет активной модели");
+            return;
+        }
+
+        int index = (int) polygonSpinner.getValue();
+        if (!ModelEditor.isValidPolygonIndex(model, index)) {
+            showErrorDialog("Неверный индекс полигона");
+            return;
+        }
+
+        if (ModelEditor.deletePolygon(model, index)) {
+            showSuccessDialog("Полигон удален");
+            updateModelInfo();
+            mainWindow.getMainPanel().repaint();
+            mainWindow.updateStatus("Полигон " + index + " удален");
+        } else {
+            showErrorDialog("Ошибка удаления полигона");
+        }
+    }
+
     private void initRenderSection() {
         JPanel panel = createStyledPanel("Отрисовка");
-        panel.setLayout(new GridLayout(0, 1, 5, 5));
+        panel.setLayout(new GridLayout(0, 1, 8, 8));
 
         gridCheckbox = new JCheckBox("Сетка", true);
-        infoCheckbox = new JCheckBox("Информация", true);
-        JCheckBox textureCheckbox = new JCheckBox("Текстура", false);
-        JCheckBox lightingCheckbox = new JCheckBox("Освещение", false);
+        axesCheckbox = new JCheckBox("Оси координат", true);
 
         gridCheckbox.addActionListener(e ->
                 mainWindow.getMainPanel().setGridVisible(gridCheckbox.isSelected()));
-        infoCheckbox.addActionListener(e ->
-                mainWindow.getMainPanel().setInfoVisible(infoCheckbox.isSelected()));
+        axesCheckbox.addActionListener(e ->
+                mainWindow.getMainPanel().setAxesVisible(axesCheckbox.isSelected()));
 
         panel.add(gridCheckbox);
-        panel.add(infoCheckbox);
-        panel.add(textureCheckbox);
-        panel.add(lightingCheckbox);
+        panel.add(axesCheckbox);
 
         add(panel);
-        add(Box.createRigidArea(new Dimension(0, 10)));
+        add(Box.createRigidArea(new Dimension(0, 15)));
     }
 
     private void initThemeSection() {
         JPanel panel = createStyledPanel("Тема");
-        panel.setLayout(new GridLayout(2, 1, 5, 5));
+        panel.setLayout(new GridLayout(1, 1, 5, 5));
 
         themeToggleBtn = createStyledButton("Сменить тему");
         themeToggleBtn.addActionListener(e -> toggleTheme());
 
-        JButton applyThemeBtn = createStyledButton("Применить тему");
-        applyThemeBtn.addActionListener(e -> applyTheme());
-
         panel.add(themeToggleBtn);
-        panel.add(applyThemeBtn);
 
         add(panel);
     }
@@ -188,42 +254,6 @@ public class ControlPanel extends JPanel {
                 BorderFactory.createEmptyBorder(5, 10, 5, 10)
         ));
         return button;
-    }
-
-    private void deleteVertex() {
-        Model3D model = mainWindow.getSceneModel().getActiveModel();
-        if (model == null) {
-            showErrorDialog("Нет активной модели");
-            return;
-        }
-
-        int index = (int) vertexSpinner.getValue();
-        if (ModelEditor.deleteVertex(model, index)) {
-            showSuccessDialog("Вершина удалена успешно");
-            updateModelInfo();
-            mainWindow.getMainPanel().repaint();
-            mainWindow.updateStatus("Вершина " + index + " удалена");
-        } else {
-            showErrorDialog("Ошибка удаления вершины");
-        }
-    }
-
-    private void deletePolygon() {
-        Model3D model = mainWindow.getSceneModel().getActiveModel();
-        if (model == null) {
-            showErrorDialog("Нет активной модели");
-            return;
-        }
-
-        int index = (int) polygonSpinner.getValue();
-        if (ModelEditor.deletePolygon(model, index)) {
-            showSuccessDialog("Полигон удален успешно");
-            updateModelInfo();
-            mainWindow.getMainPanel().repaint();
-            mainWindow.updateStatus("Полигон " + index + " удален");
-        } else {
-            showErrorDialog("Ошибка удаления полигона");
-        }
     }
 
     private void renameModel() {
@@ -263,7 +293,6 @@ public class ControlPanel extends JPanel {
                 panel.setBackground(ThemeManager.getPanelColor());
                 panel.setForeground(ThemeManager.getTextColor());
 
-                // Обновляем все компоненты внутри панели
                 updateComponentColors(panel);
             }
         }
@@ -336,11 +365,9 @@ public class ControlPanel extends JPanel {
             // Обновляем спиннеры
             SpinnerNumberModel vModel = (SpinnerNumberModel) vertexSpinner.getModel();
             vModel.setMaximum(Math.max(0, model.getVertexCount() - 1));
-            vModel.setValue(0);
 
             SpinnerNumberModel pModel = (SpinnerNumberModel) polygonSpinner.getModel();
             pModel.setMaximum(Math.max(0, model.getFaceCount() - 1));
-            pModel.setValue(0);
         } else {
             modelInfoLabel.setText("<html><center>Нет активной модели</center></html>");
 
@@ -351,48 +378,6 @@ public class ControlPanel extends JPanel {
             SpinnerNumberModel pModel = (SpinnerNumberModel) polygonSpinner.getModel();
             pModel.setMaximum(0);
             pModel.setValue(0);
-        }
-    }
-
-    public void selectVertex() {
-        Model3D model = mainWindow.getSceneModel().getActiveModel();
-        if (model != null) {
-            String input = JOptionPane.showInputDialog(this,
-                    "Введите индекс вершины (0-" + (model.getVertexCount()-1) + "):", "0");
-            if (input != null) {
-                try {
-                    int index = Integer.parseInt(input);
-                    if (index >= 0 && index < model.getVertexCount()) {
-                        vertexSpinner.setValue(index);
-                        mainWindow.updateStatus("Выбрана вершина " + index);
-                    } else {
-                        showErrorDialog("Индекс должен быть от 0 до " + (model.getVertexCount()-1));
-                    }
-                } catch (NumberFormatException e) {
-                    showErrorDialog("Неверный формат числа");
-                }
-            }
-        }
-    }
-
-    public void selectPolygon() {
-        Model3D model = mainWindow.getSceneModel().getActiveModel();
-        if (model != null) {
-            String input = JOptionPane.showInputDialog(this,
-                    "Введите индекс полигона (0-" + (model.getFaceCount()-1) + "):", "0");
-            if (input != null) {
-                try {
-                    int index = Integer.parseInt(input);
-                    if (index >= 0 && index < model.getFaceCount()) {
-                        polygonSpinner.setValue(index);
-                        mainWindow.updateStatus("Выбран полигон " + index);
-                    } else {
-                        showErrorDialog("Индекс должен быть от 0 до " + (model.getFaceCount()-1));
-                    }
-                } catch (NumberFormatException e) {
-                    showErrorDialog("Неверный формат числа");
-                }
-            }
         }
     }
 }

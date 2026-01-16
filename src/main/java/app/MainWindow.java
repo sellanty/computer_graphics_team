@@ -81,34 +81,22 @@ public class MainWindow extends JFrame {
         fileMenu.addSeparator();
         fileMenu.add(exitItem);
 
-        // Меню Редактирование
-        JMenu editMenu = new JMenu("Редактирование");
-        JMenuItem deleteVertexItem = new JMenuItem("Удалить вершину");
-        JMenuItem deletePolygonItem = new JMenuItem("Удалить полигон");
 
-        deleteVertexItem.addActionListener(e -> controlPanel.selectVertex());
-        deletePolygonItem.addActionListener(e -> controlPanel.selectPolygon());
-
-        editMenu.add(deleteVertexItem);
-        editMenu.add(deletePolygonItem);
 
         // Меню Вид
         JMenu viewMenu = new JMenu("Вид");
         JMenuItem lightThemeItem = new JMenuItem("Светлая тема");
         JMenuItem darkThemeItem = new JMenuItem("Темная тема");
         JCheckBoxMenuItem gridItem = new JCheckBoxMenuItem("Показать сетку", true);
-        JCheckBoxMenuItem infoItem = new JCheckBoxMenuItem("Показать информацию", true);
 
         lightThemeItem.addActionListener(e -> setLightTheme());
         darkThemeItem.addActionListener(e -> setDarkTheme());
         gridItem.addActionListener(e -> mainPanel.setGridVisible(gridItem.isSelected()));
-        infoItem.addActionListener(e -> mainPanel.setInfoVisible(infoItem.isSelected()));
 
         viewMenu.add(lightThemeItem);
         viewMenu.add(darkThemeItem);
         viewMenu.addSeparator();
         viewMenu.add(gridItem);
-        viewMenu.add(infoItem);
 
         // Меню Справка
         JMenu helpMenu = new JMenu("Справка");
@@ -118,7 +106,6 @@ public class MainWindow extends JFrame {
         helpMenu.add(aboutItem);
 
         menuBar.add(fileMenu);
-        menuBar.add(editMenu);
         menuBar.add(viewMenu);
         menuBar.add(helpMenu);
 

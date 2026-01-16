@@ -5,16 +5,58 @@ import main.java.app.model.SceneModel;
 import main.java.app.utils.ThemeManager;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.List;
 
 public class MainPanel extends JPanel {
     private SceneModel sceneModel;
     private boolean showGrid = true;
     private boolean showInfo = true;
+    private boolean showAxes = true;
+
+    private float rotationY = 0.0f;
+    private float rotationX = 0.0f;
+    private Point lastMousePoint;
 
     public MainPanel(SceneModel sceneModel) {
         this.sceneModel = sceneModel;
         setBackground(ThemeManager.getBackgroundColor());
+        setDoubleBuffered(true);
+
+        // Обработка мыши для ручного вращения
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                lastMousePoint = e.getPoint();
+            }
+        });
+
+        addMouseMotionListener(new MouseAdapter() {
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (lastMousePoint != null && SwingUtilities.isLeftMouseButton(e)) {
+                    int dx = e.getX() - lastMousePoint.x;
+                    int dy = e.getY() - lastMousePoint.y;
+
+                    rotationY += dx * 0.01f;
+                    rotationX += dy * 0.01f;
+
+                    lastMousePoint = e.getPoint();
+                    repaint();
+                }
+            }
+        });
+
+        // Двойной клик - сброс вращения
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    resetRotation();
+                }
+            }
+        });
     }
 
     @Override
@@ -34,13 +76,14 @@ public class MainPanel extends JPanel {
             drawGrid(g2d);
         }
 
+        // Оси
+        if (showAxes) {
+            drawAxes(g2d);
+        }
+
         // Модели
         drawModels(g2d);
 
-        // Информация
-        if (showInfo) {
-            drawInfo(g2d);
-        }
     }
 
     private void drawGrid(Graphics2D g2d) {
@@ -66,132 +109,133 @@ public class MainPanel extends JPanel {
         for (int y = centerY; y >= 0; y -= step) {
             g2d.drawLine(0, y, getWidth(), y);
         }
+    }
 
-        // Центральные оси
-        g2d.setColor(ThemeManager.getTextColor());
-        g2d.setStroke(new BasicStroke(1.5f));
-        g2d.drawLine(centerX, 0, centerX, getHeight()); // Y ось
-        g2d.drawLine(0, centerY, getWidth(), centerY); // X ось
+    private void drawAxes(Graphics2D g2d) {
+        int centerX = getWidth() / 2;
+        int centerY = getHeight() / 2;
+        int length = 100;
+
+        // Ось X (красная)
+        g2d.setColor(Color.RED);
+        g2d.setStroke(new BasicStroke(2));
+        g2d.drawLine(centerX, centerY, centerX + length, centerY);
+        g2d.fillPolygon(
+                new int[]{centerX + length + 5, centerX + length, centerX + length},
+                new int[]{centerY, centerY - 5, centerY + 5},
+                3
+        );
+        g2d.drawString("X", centerX + length + 10, centerY + 5);
+
+        // Ось Y (зеленая)
+        g2d.setColor(Color.GREEN);
+        g2d.drawLine(centerX, centerY, centerX, centerY - length);
+        g2d.fillPolygon(
+                new int[]{centerX, centerX - 5, centerX + 5},
+                new int[]{centerY - length - 5, centerY - length, centerY - length},
+                3
+        );
+        g2d.drawString("Y", centerX - 10, centerY - length - 10);
+
+        // Ось Z (синяя) - проекция
+        g2d.setColor(Color.BLUE);
+        int zX = (int)(centerX + length * Math.cos(Math.PI/4));
+        int zY = (int)(centerY + length * Math.sin(Math.PI/4));
+        g2d.drawLine(centerX, centerY, zX, zY);
+        g2d.fillPolygon(
+                new int[]{zX + 3, zX, zX},
+                new int[]{zY + 3, zY - 3, zY + 3},
+                3
+        );
+        g2d.drawString("Z", zX + 5, zY + 5);
+
+        g2d.setStroke(new BasicStroke(1));
     }
 
     private void drawModels(Graphics2D g2d) {
         List<Model3D> models = sceneModel.getModels();
         if (models.isEmpty()) {
-            drawNoModelMessage(g2d);
             return;
         }
 
-        Model3D active = sceneModel.getActiveModel();
-        int spacing = 20;
-        int startY = 50;
+        Model3D activeModel = sceneModel.getActiveModel();
 
-        for (int i = 0; i < models.size(); i++) {
-            Model3D model = models.get(i);
-            boolean isActive = model == active;
-            int panelHeight = 120;
-            int y = startY + i * (panelHeight + spacing);
+        // Если только одна модель - рисуем ее на весь экран
+        if (models.size() == 1) {
+            Model3D model = models.get(0);
+            boolean isActive = (model == activeModel);
 
-            drawModelPreview(g2d, model, 50, y, getWidth() - 100, panelHeight, isActive);
-        }
-    }
+            // Рамка для активной модели
+            if (isActive) {
+                g2d.setColor(Color.YELLOW);
+                g2d.setStroke(new BasicStroke(2));
+                g2d.drawRect(20, 20, getWidth() - 40, getHeight() - 40);
+                g2d.setStroke(new BasicStroke(1));
+            }
 
-    private void drawModelPreview(Graphics2D g2d, Model3D model, int x, int y, int width, int height, boolean active) {
-        // Фон панели модели
-        g2d.setColor(ThemeManager.getPanelColor());
-        g2d.fillRoundRect(x, y, width, height, 15, 15);
+            // Рендерим модель
+            SimpleRenderer.renderModel(g2d, model,
+                    20, 20, getWidth() - 40, getHeight() - 40,
+                    1.0f, rotationX, rotationY, isActive);
 
-        // Обводка
-        g2d.setColor(active ? Color.YELLOW : ThemeManager.getBorderColor());
-        g2d.setStroke(new BasicStroke(active ? 3 : 1));
-        g2d.drawRoundRect(x, y, width, height, 15, 15);
-        g2d.setStroke(new BasicStroke(1));
+            // Информация о вращении
+            g2d.setColor(Color.WHITE);
+            g2d.setFont(new Font("Arial", Font.PLAIN, 12));
+            String rotateInfo = String.format("Вращение: X=%.1f° Y=%.1f° | Перетащите мышью для вращения | Двойной клик - сброс",
+                    rotationX * 180 / Math.PI, rotationY * 180 / Math.PI);
+            g2d.drawString(rotateInfo, 30, getHeight() - 30);
 
-        // Имя модели
-        g2d.setColor(ThemeManager.getTextColor());
-        g2d.setFont(new Font("Arial", Font.BOLD, 16));
-        String name = model.getName() + (model.isModified() ? " *" : "");
-        g2d.drawString(name, x + 20, y + 30);
+        } else {
+            // Несколько моделей - рисуем превьюшки
+            int cols = 2;
+            int panelWidth = (getWidth() - 60) / cols;
+            int panelHeight = 200;
+            int spacing = 20;
 
-        // Информация
-        g2d.setFont(new Font("Arial", Font.PLAIN, 12));
-        String info = String.format("Вершин: %d | Полигонов: %d | %s",
-                model.getVertexCount(),
-                model.getFaceCount(),
-                active ? "АКТИВНА" : "неактивна");
-        g2d.drawString(info, x + 20, y + 50);
+            for (int i = 0; i < models.size(); i++) {
+                Model3D model = models.get(i);
+                boolean isActive = (model == activeModel);
 
-        // Простая визуализация модели
-        drawModelVisualization(g2d, model, x + width - 150, y + 20, 100, 80, active);
-    }
+                int col = i % cols;
+                int row = i / cols;
+                int x = 20 + col * (panelWidth + spacing);
+                int y = 20 + row * (panelHeight + spacing);
 
-    private void drawModelVisualization(Graphics2D g2d, Model3D model, int x, int y, int width, int height, boolean active) {
-        // Фон визуализации
-        g2d.setColor(active ? new Color(60, 60, 70) : new Color(50, 50, 60));
-        g2d.fillRect(x, y, width, height);
+                // Панель для модели
+                g2d.setColor(ThemeManager.getPanelColor());
+                g2d.fillRoundRect(x, y, panelWidth, panelHeight, 10, 10);
 
-        // Простая сетка внутри
-        g2d.setColor(active ? new Color(100, 100, 110) : new Color(80, 80, 90));
-        for (int i = 0; i <= 4; i++) {
-            int posX = x + i * (width / 4);
-            int posY = y + i * (height / 4);
-            g2d.drawLine(x, posY, x + width, posY);
-            g2d.drawLine(posX, y, posX, y + height);
-        }
+                // Рамка для активной
+                g2d.setColor(isActive ? Color.YELLOW : ThemeManager.getBorderColor());
+                g2d.setStroke(new BasicStroke(isActive ? 2 : 1));
+                g2d.drawRoundRect(x, y, panelWidth, panelHeight, 10, 10);
 
-        // Примерные вершины
-        List<float[]> vertices = model.getVertices();
-        if (vertices != null && !vertices.isEmpty()) {
-            g2d.setColor(ThemeManager.getModelColor(active));
-            int maxPoints = Math.min(20, vertices.size());
+                // Название модели
+                g2d.setColor(ThemeManager.getTextColor());
+                g2d.setFont(new Font("Arial", Font.BOLD, 14));
+                String name = model.getName() + (model.isModified() ? " *" : "");
+                g2d.drawString(name, x + 15, y + 25);
 
-            for (int i = 0; i < maxPoints; i++) {
-                float[] vertex = vertices.get(i);
-                int pointX = x + (int)((vertex[0] + 1) * width / 2);
-                int pointY = y + (int)((vertex[1] + 1) * height / 2);
+                // Информация
+                g2d.setFont(new Font("Arial", Font.PLAIN, 11));
+                String info = String.format("Вершин: %d, Полигонов: %d",
+                        model.getVertexCount(), model.getFaceCount());
+                g2d.drawString(info, x + 15, y + 45);
 
-                if (pointX >= x && pointX <= x + width && pointY >= y && pointY <= y + height) {
-                    g2d.fillOval(pointX - 3, pointY - 3, 6, 6);
-                }
+                // Рендерим маленькую модель
+                SimpleRenderer.renderModel(g2d, model,
+                        x + 15, y + 60,
+                        panelWidth - 30, panelHeight - 80,
+                        0.5f, rotationY, rotationX, isActive);
             }
         }
     }
 
-    private void drawNoModelMessage(Graphics2D g2d) {
-        g2d.setColor(ThemeManager.getTextColor());
-        g2d.setFont(new Font("Arial", Font.BOLD, 28));
-        String msg = "3D Viewer";
-        int w = g2d.getFontMetrics().stringWidth(msg);
-        g2d.drawString(msg, getWidth()/2 - w/2, getHeight()/2 - 50);
 
-        g2d.setFont(new Font("Arial", Font.PLAIN, 16));
-        String subMsg = "Загрузите модель через меню Файл → Открыть";
-        int subW = g2d.getFontMetrics().stringWidth(subMsg);
-        g2d.drawString(subMsg, getWidth()/2 - subW/2, getHeight()/2);
 
-        String hint = "Или перетащите файл .obj в это окно";
-        int hintW = g2d.getFontMetrics().stringWidth(hint);
-        g2d.drawString(hint, getWidth()/2 - hintW/2, getHeight()/2 + 30);
-    }
 
-    private void drawInfo(Graphics2D g2d) {
-        g2d.setColor(ThemeManager.getTextColor());
-        g2d.setFont(new Font("Arial", Font.PLAIN, 12));
 
-        // Статус в верхнем левом углу
-        String status = String.format("Моделей: %d | Тема: %s",
-                sceneModel.getModels().size(),
-                ThemeManager.getCurrentTheme() == ThemeManager.Theme.DARK ? "Темная" : "Светлая");
-        g2d.drawString(status, 10, 20);
-
-        // Информация об активной модели в нижнем правом углу
-        Model3D active = sceneModel.getActiveModel();
-        if (active != null) {
-            String info = String.format("Активная: %s | В: %d | П: %d",
-                    active.getName(), active.getVertexCount(), active.getFaceCount());
-            int w = g2d.getFontMetrics().stringWidth(info);
-            g2d.drawString(info, getWidth() - w - 10, getHeight() - 10);
-        }
-    }
+    // ============ Методы управления ============
 
     public void setGridVisible(boolean visible) {
         this.showGrid = visible;
@@ -200,6 +244,37 @@ public class MainPanel extends JPanel {
 
     public void setInfoVisible(boolean visible) {
         this.showInfo = visible;
+        repaint();
+    }
+
+    public void setAxesVisible(boolean visible) {
+        this.showAxes = visible;
+        repaint();
+    }
+
+    public void resetRotation() {
+        rotationX = 0;
+        rotationY = 0;
+        repaint();
+    }
+
+    public void rotateLeft() {
+        rotationY -= 0.1f;
+        repaint();
+    }
+
+    public void rotateRight() {
+        rotationY += 0.1f;
+        repaint();
+    }
+
+    public void rotateUp() {
+        rotationX -= 0.1f;
+        repaint();
+    }
+
+    public void rotateDown() {
+        rotationX += 0.1f;
         repaint();
     }
 }
